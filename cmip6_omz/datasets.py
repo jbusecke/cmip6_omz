@@ -1,13 +1,13 @@
 # A module to smoothly read in obs data (could probably be handled by an intake catalog...)
 # also this should read stuff from relative paths to links in 'external' folder.
 
-#this file is recreated from jbusecke/aguadv_omz_busecke_2021
-
 import xarray as xr
 import numpy as np
 import warnings
 
-from aguadv_omz_busecke_2021.omz_tools import convert_o2_ml_l
+from cmip6_preprocessing.preprocessing import correct_lon
+
+from omz_tools import convert_o2_ml_l
 
 #!!! maybe I should copy this function. I dont want the dependency in cmip6_pp
 from xarrayutils.utils import dll_dist
@@ -52,19 +52,6 @@ def reconstruct_areacello(ds):
         return None
 
 
-def correct_lon(ds):
-    """Wraps negative x and lon values around to have 0-360 lons.
-    longitude names expected to be corrected with `rename_cmip6`"""
-    ds = ds.copy()
-
-    x = ds["x"].data
-    x = np.where(x < 0, 360 + x, x)
-
-    lon = ds["lon"].where(ds["lon"] > 0, 360 + ds["lon"])
-
-    ds = ds.assign_coords(x=x, lon=(ds.lon.dims, lon))
-    ds = ds.sortby("x")
-    return ds
 
 
 #
@@ -160,18 +147,12 @@ def woa13():
         attrs["units"] = "$mol \, m^3$"
         woa[va].attrs = attrs
 
-    # I usually use aou as negative
-    attrs = woa["aou"].attrs
-    woa["aou"] = -woa["aou"]
-    woa["aou"].attrs = attrs
-
     # recalculate o2sat
     woa["o2sat"] = woa["o2"] - woa["aou"]
     woa["o2sat"].attrs["units"] = woa["aou"].attrs["units"]
 
-    # # reconstruct area
+    # reconstruct area
     woa.coords["areacello"] = reconstruct_areacello(woa)
-    # this is a shitty old implementation (xr cf will solve this....)
     woa.coords["areacello"].attrs = {}
 
     woa = woa.assign_coords(
