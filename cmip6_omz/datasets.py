@@ -9,7 +9,7 @@ from cmip6_preprocessing.preprocessing import correct_lon
 
 from omz_tools import convert_o2_ml_l
 
-#!!! maybe I should copy this function. I dont want the dependency in cmip6_pp
+# TODO: We are planning on integrating this functionality in xgcm at a later point. Check back in time to see if we can refactor this.
 from xarrayutils.utils import dll_dist
 
 
