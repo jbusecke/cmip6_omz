@@ -22,6 +22,24 @@ from units import(
 from aguadv_omz_busecke_2021.cmip6_stash import cmip6_dataset_id
 from cmip6_preprocessing.regionmask import merged_mask
 
+
+###Mask Functions###
+#do we want convenience functions for each basin,
+#or will having one general function do?
+def mask_basin(ds, region='Pacific', drop=True):
+    if regionmask is None:
+        raise RuntimeError("Please install the latest regionmask version")
+    basins = regionmask.defined_regions.natural_earth.ocean_basins_50
+    mask = merged_mask(basins, ds)
+    masks = {
+        'Pacific':np.logical_or(mask == 2, mask == 3),
+        'Atlantic':np.logical_or(mask == 0, mask == 1),
+        'Indian':mask == 5,  # Indian without Maritime Continent
+        'Global': mask >= 0
+    }
+    ds_masked = ds.where(masks[region], drop=drop)
+    return ds_masked
+
 ###Volume Functions###
 
 def sample_select(ds_check):
@@ -88,10 +106,6 @@ def omz_thickness(
     ]
     return xr.concat(datasets, dim="o2_bin")
 
-
-
-#Note: going to bring mask functions into their own file now that
-#we are working with several basins. Same with plotting functions
 
 
 
