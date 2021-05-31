@@ -6,7 +6,7 @@ dependencies:
   - pytest
   # Examples (remove and add as needed)
   - jupyter
-  - jupyterlab
+#   - jupyterlab
   - xarray
   - numpy
   - scipy
@@ -14,3 +14,4 @@ dependencies:
   - netcdf4
   - pandas
   - matplotlib
+  - ipykernel
