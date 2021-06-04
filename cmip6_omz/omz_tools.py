@@ -14,7 +14,7 @@ import warnings
 import xarray as xr
 import matplotlib.pyplot as plt
 
-from units import(
+from .units import(
     convert_o2_ml_l,
     convert_mol_m3_mymol_kg,
 )
@@ -23,9 +23,7 @@ from aguadv_omz_busecke_2021.cmip6_stash import cmip6_dataset_id
 from cmip6_preprocessing.regionmask import merged_mask
 
 
-###Mask Functions###
-#do we want convenience functions for each basin,
-#or will having one general function do?
+###Mask Function###
 def mask_basin(ds, region='Pacific', drop=True):
     if regionmask is None:
         raise RuntimeError("Please install the latest regionmask version")
@@ -98,7 +96,8 @@ def omz_thickness(
     o2_var="o2",
     o2_bins=np.array([5, 10, 20, 40, 60, 80, 100, 120, 140]),
 ):
-    o2 = ds[o2_var] / 1025 * 1e6
+    #should this check units of o2?
+    o2 = ds[o2_var] / 1025 * 1e6 #from mol/m^3 to mymol/kg
     dz = xr.ones_like(o2) * ds[dz_var]
     datasets = [
         dz.where(o2 <= o2b, 0).assign_coords(o2_bin=o2b).astype(o2.dtype)
