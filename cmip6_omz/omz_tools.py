@@ -19,7 +19,7 @@ from .units import(
     convert_mol_m3_mymol_kg,
 )
 
-from aguadv_omz_busecke_2021.cmip6_stash import cmip6_dataset_id
+from cmip6_preprocessing.utils import cmip6_dataset_id
 from cmip6_preprocessing.regionmask import merged_mask
 
 
