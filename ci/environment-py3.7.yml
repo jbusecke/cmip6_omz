@@ -13,3 +13,4 @@ dependencies:
     - codecov
     - pytest-cov
     - coverage[toml]
+    - cmip6_preprocessing
