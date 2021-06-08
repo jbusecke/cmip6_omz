@@ -7,10 +7,10 @@ dependencies:
   - numpy
   - scipy
   - xarray
+  - cmip6_preprocessing
   ##############
   - pytest
   - pip:
     - codecov
     - pytest-cov
     - coverage[toml]
-    - cmip6_preprocessing
