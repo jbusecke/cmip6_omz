@@ -18,4 +18,3 @@ dependencies:
     - codecov
     - pytest-cov
     - coverage[toml]
-    -warnings
