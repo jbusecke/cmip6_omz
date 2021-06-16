@@ -18,3 +18,4 @@ dependencies:
     - codecov
     - pytest-cov
     - coverage[toml]
+    - numba
