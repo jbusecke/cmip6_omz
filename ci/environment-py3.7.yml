@@ -10,9 +10,12 @@ dependencies:
   - cmip6_preprocessing
   - xarrayutils
   - regionmask
+  - xgcm
+  - cf_xarray
   ##############
-  - pytest
+  - Pytest
   - pip:
     - codecov
     - pytest-cov
     - coverage[toml]
+    -warnings
