@@ -12,10 +12,10 @@ dependencies:
   - regionmask
   - xgcm
   - cf_xarray
+  - numba
   ##############
   - pytest
   - pip:
     - codecov
     - pytest-cov
     - coverage[toml]
-    - numba
