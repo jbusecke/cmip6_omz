@@ -10,8 +10,11 @@ dependencies:
   - cmip6_preprocessing
   - xarrayutils
   - regionmask
+  - xgcm
+  - cf_xarray
+  - numba
   ##############
-  - pytest
+  - Pytest
   - pip:
     - codecov
     - pytest-cov
