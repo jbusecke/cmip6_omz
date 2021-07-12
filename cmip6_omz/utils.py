@@ -17,6 +17,28 @@ def cmip6_collection(zarr=False):
         url = "https://storage.googleapis.com/cmip6/pangeo-cmip6.json"
     return url
 
+def o2_models():
+    """A central place to store all available models with o2 output"""
+    return [
+        "CanESM5-CanOE",
+        "CanESM5",
+        "CNRM-ESM2-1",
+        "ACCESS-ESM1-5",
+        "MPI-ESM-1-2-HAM",
+        "IPSL-CM6A-LR",
+        "MIROC-ES2L",
+        "UKESM1-0-LL",
+        "MPI-ESM1-2-HR",
+        "MPI-ESM1-2-LR",
+        "MRI-ESM2-0",
+        "NorCPM1",
+        "NorESM1-F",
+        "NorESM2-LM",
+        "NorESM2-MM",
+        "GFDL-CM4",
+        "GFDL-ESM4",
+    ]
+
 
 ######## These are temp, and should be replaced eventually #########
 from aguadv_omz_busecke_2021.cmip6_stash import (
