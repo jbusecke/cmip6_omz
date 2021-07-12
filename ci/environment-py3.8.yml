@@ -15,6 +15,7 @@ dependencies:
   - numba
   ##############
   - pytest
+  - pip
   - pip:
     - codecov
     - pytest-cov
