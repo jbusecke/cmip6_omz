@@ -95,7 +95,7 @@ def omz_boundaries(z, o2, o2_threshold, vertical_dim="lev", fill_val=1e32, **kwa
         output_core_dims=[["new"]],
         dask="parallelized",
         output_dtypes=[o2.dtype],
-        dask_gufunc_kwargs=dict(output_sizes={"new": 5}),
+        dask_gufunc_kwargs=dict(output_sizes={"new": 4}),
     )
     out = xr.Dataset(
         {
