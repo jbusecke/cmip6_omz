@@ -3,6 +3,9 @@ import xarray as xr
 from xgcm import Grid
 import cf_xarray
 import warnings
+import collections
+import os
+import fnmatch
 
 from cmip6_preprocessing.drift_removal import remove_trend
 
@@ -225,3 +228,44 @@ def match_and_detrend(data_dict, trend_dict, pass_variables=[], verbose=False):
             else:
                 warnings.warn(f"No match found for {match_elements}.")
     return data_dict_detrended
+
+
+# modified from this: https://stackoverflow.com/a/37704379
+def nested_set(dic, keys, value):
+    for key in keys[:-1]:
+        dic = dic.setdefault(key, {})
+    dic[keys[-1]] = value
+
+
+def load_data_to_nested_dict(path, match=None, sep="-", **kwargs):
+    flist = os.listdir(os.path.join(path))
+
+    if not match is None:
+        flist_match = []
+        if isinstance(match, str):
+            match = [match]
+        for m in match:
+            flist_match = flist_match + [f for f in flist if fnmatch.fnmatch(f, m)]
+        flist = flist_match
+
+    # initialize dict
+    out_dict = {}
+    for f in flist:  # add a fastprogress bar
+        print("Loading %s" % f)
+        f_clean = os.path.splitext(f)[0]
+        k_list = f_clean.split(sep)
+        f_path = os.path.join(path, f)
+        nested_set(out_dict, k_list, xr.open_zarr(f_path, **kwargs))
+    return out_dict
+
+
+def flatten_dict(d, parent_key="", sep="-"):
+    """flatten a dict by concatenating nested keys with seperator `sep`"""
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
