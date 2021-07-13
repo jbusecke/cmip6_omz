@@ -225,3 +225,33 @@ def match_and_detrend(data_dict, trend_dict, pass_variables=[], verbose=False):
             else:
                 warnings.warn(f"No match found for {match_elements}.")
     return data_dict_detrended
+
+##############################Misc#############
+
+#These are fixes so that the trend data works with cmip6_pp match_and_remove_trend
+#these issues should be addressed in the next iteration of trend file production
+def fix_trend_metadata(trend_dict):
+    for name, ds in trend_dict.items():
+        #restore attributes to trend datasets using file names
+        #assumes consistent naming scheme for file names
+        fn = (ds.attrs['filepath']).rsplit("/")[-1]
+        fn_parse = fn.split('_')
+        ds.attrs['source_id'] = fn_parse[2]
+        ds.attrs['grid_label'] = fn_parse[5]
+        ds.attrs['experiment_id'] = fn_parse[3]
+        ds.attrs['table_id'] = fn_parse[4]
+        ds.attrs['variant_label'] = fn_parse[7]
+        ds.attrs['variable_id'] = fn_parse[8]
+        
+        #rename 'slope' variable to variable_id
+        if "slope" in ds.variables:
+            ds = ds.rename({"slope":ds.attrs["variable_id"]})
+        
+        #error was triggered in line 350 of cmip6_preprocessing.drift_removal
+        ##this is a temporary workaround, and the one part of this function that might
+        ##require an upstream fix (though it might just be an environment issue)
+        #ds = ds.drop('trend_time_range')
+        
+        trend_dict[name] = ds
+        
+    return trend_dict
