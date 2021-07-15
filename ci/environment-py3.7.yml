@@ -13,6 +13,7 @@ dependencies:
   - xgcm
   - cf_xarray
   - numba
+  - zarr
   ##############
   - Pytest
   - pip:
