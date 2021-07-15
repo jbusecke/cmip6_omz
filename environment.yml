@@ -5,8 +5,12 @@ dependencies:
   # Required for full project functionality (dont remove)
   - pytest
   # Examples (remove and add as needed)
-  - jupyter
-#   - jupyterlab
+  - ipykernel
+  - astropy
+  - dask
+  - distributed
+  - dask-jobqueue
+  - cartopy
   - xarray
   - numpy
   - scipy
@@ -14,4 +18,20 @@ dependencies:
   - netcdf4
   - pandas
   - matplotlib
-  - ipykernel
+  - cmocean
+  - regionmask
+  - xesmf
+  - xhistogram
+  - zarr
+  - gsw
+  - numba
+  - h5netcdf
+  - pip
+  - cf_xarray
+  - rechunker<=0.3.3
+  - fastjmd95
+  - nc-time-axis
+  - xarrayutils
+  - intake-esm
+  - xgcm
+  - cmip6_preprocessing

@@ -6,6 +6,12 @@ import warnings
 import collections
 import os
 import fnmatch
+import shutil
+import zarr
+from rechunker.api import rechunk
+import pathlib
+
+
 
 from cmip6_preprocessing.drift_removal import remove_trend
 
@@ -297,3 +303,118 @@ def flatten_dict(d, parent_key="", sep="-"):
         else:
             items.append((new_key, v))
     return dict(items)
+
+
+def rechunker_wrapper(source_store, target_store, temp_store, chunks=None, mem="2GiB", consolidated=False, verbose=False):
+    # 4GB is based on a node on tigercpu (40 cores/192GB RAM)
+    # but wait, should this be per worker? Let me adjust that higher...
+
+    # convert str to paths
+    def maybe_convert_to_path(p):
+        if isinstance(p, str):
+            return pathlib.Path(p)
+        else:
+            return p
+
+    source_store = maybe_convert_to_path(source_store)
+    target_store = maybe_convert_to_path(target_store)
+    temp_store = maybe_convert_to_path(temp_store)
+
+    # erase target and temp stores
+    if temp_store.exists():
+        shutil.rmtree(temp_store)
+
+    if target_store.exists():
+        shutil.rmtree(target_store)
+
+
+    if isinstance(source_store, xr.Dataset):
+        g = source_store  # trying to work directly with a dataset
+        ds_chunk = g
+    else:
+        g = zarr.group(str(source_store))
+        # get the correct shape from loading the store as xr.dataset and parse the chunks
+        ds_chunk = xr.open_zarr(str(source_store))
+        
+    # preprocess chunks
+    if chunks is None:
+        chunks = standard_chunks()
+    # this should be able to parse -1 as full length chunks (maybe implement that upstream)
+#     for di, ch in chunks.items():
+#         if ch == -1:
+#             chunks[di] = len(source_store[di])
+
+    # convert all paths to strings
+    source_store = str(source_store)
+    target_store = str(target_store)
+    temp_store = str(temp_store)
+
+    group_chunks = {}
+    # old version in tuples which is needed for dataset input (https://github.com/pangeo-data/rechunker/issues/59)
+    #     for var in ds_chunk.variables:
+    #         # pick appropriate chunks from above, and default to full length chunks for dimensions that are not in `chunks` above.
+    #         group_chunks[var] = tuple([chunks[di] if di in chunks.keys() else len(ds_chunk[di]) for di in ds_chunk[var].dims])
+
+    # this is the better way to do it...(I should integrate this in the rechunker repo)
+    #     for var in ds_chunk.variables:
+    #         # pick appropriate chunks from above, and default to full length chunks for dimensions that are not in `chunks` above.
+    #         group_chunks[var] = {}
+    #         for di in ds_chunk[var].dims:
+    #             if di in chunks.keys():
+    #                 group_chunks[var][di] = chunks[di]
+    #             else:
+    #                 group_chunks[var][di] = len(ds_chunk[di])
+
+    # newer tuple version that also takes into account when specified chunks are larger than the array
+    for var in ds_chunk.variables:
+        # pick appropriate chunks from above, and default to full length chunks for dimensions that are not in `chunks` above.
+        group_chunks[var] = []
+        for di in ds_chunk[var].dims:
+            if di in chunks.keys():
+                if chunks[di] > len(ds_chunk[di]):
+                    group_chunks[var].append(len(ds_chunk[di]))
+                else:
+                    group_chunks[var].append(chunks[di])
+
+            else:
+                group_chunks[var].append(len(ds_chunk[di]))
+
+        group_chunks[var] = tuple(group_chunks[var])
+    if verbose:
+        print(f"Rechunking to: {group_chunks}")
+    rechunked = rechunk(g, group_chunks, mem, target_store, temp_store=temp_store)
+    rechunked.execute()
+    if consolidated:
+        if verbose:
+            print('consolidating metadata')
+        zarr.convenience.consolidate_metadata(target_store)
+    if verbose:
+        print('removing temp store')
+    shutil.rmtree(temp_store)
+    if verbose:
+        print('done')
+
+
+def rechunk_to_temp(source, store_target, store_temp=None, chunks={"time": 600, "lev": 1, "x": 180, "y": 180}, consolidated=False, mem="1536 MiB"):
+    for st in [store_temp, store_target]:
+        if st.exists():
+            shutil.rmtree(st)
+    if store_temp is None:
+        store_temp=ofolder.joinpath("rechunker_temp.zarr")
+    
+    variables = list(source.variables)
+#     print(variables)
+#     for var in variables:
+#         if "chunks" in source[var].encoding.keys():
+#             del source[var].encoding["chunks"]
+    
+    rechunker_wrapper(
+        source.unify_chunks(),
+        store_target,
+        store_temp,
+        chunks=chunks,
+        mem=mem,
+        consolidated=consolidated,
+    )
+    print("reloading")
+    return xr.open_zarr(store_target, use_cftime=True, consolidated=consolidated)

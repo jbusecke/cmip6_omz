@@ -107,8 +107,11 @@ def omz_thickness(
 
 
 
-
-
-
+# 
+def sigma_bins():
+    """a global definition of fine density bins for transformation
+    See `notebooks/dev_fine_density_bins.ipynb` for details.
+    """
+    return np.hstack([[0], np.arange(22.5, 26.5, 0.25), np.arange(26.5, 27.9, 0.05), [100]])
 
 
