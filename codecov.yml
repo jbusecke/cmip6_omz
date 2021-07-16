@@ -1,0 +1,2 @@
+ignore:
+  - "cmip6_omz/upstream.py"  # ignore folders and all its contents
