@@ -3,6 +3,15 @@ import xarray as xr
 from xgcm import Grid
 import cf_xarray
 import warnings
+import collections
+import os
+import fnmatch
+import shutil
+import zarr
+from rechunker.api import rechunk
+import pathlib
+
+
 
 from cmip6_preprocessing.drift_removal import remove_trend
 
@@ -225,3 +234,187 @@ def match_and_detrend(data_dict, trend_dict, pass_variables=[], verbose=False):
             else:
                 warnings.warn(f"No match found for {match_elements}.")
     return data_dict_detrended
+
+
+#These are fixes so that the trend data works with cmip6_pp match_and_remove_trend
+#these issues should be addressed in the next iteration of trend file production
+def fix_trend_metadata(trend_dict):
+    for name, ds in trend_dict.items():
+        #restore attributes to trend datasets using file names
+        #assumes consistent naming scheme for file names
+        fn = (ds.attrs['filepath']).rsplit("/")[-1]
+        fn_parse = fn.split('_')
+        ds.attrs['source_id'] = fn_parse[2]
+        ds.attrs['grid_label'] = fn_parse[5]
+        ds.attrs['experiment_id'] = fn_parse[3]
+        ds.attrs['table_id'] = fn_parse[4]
+        ds.attrs['variant_label'] = fn_parse[7]
+        ds.attrs['variable_id'] = fn_parse[8]
+        
+        #rename 'slope' variable to variable_id
+        if "slope" in ds.variables:
+            ds = ds.rename({"slope":ds.attrs["variable_id"]})
+        
+        #error was triggered in line 350 of cmip6_preprocessing.drift_removal
+        ##this is a temporary workaround, and the one part of this function that might
+        ##require an upstream fix (though it might just be an environment issue)
+        #ds = ds.drop('trend_time_range')
+        
+        trend_dict[name] = ds
+        
+    return trend_dict
+
+# modified from this: https://stackoverflow.com/a/37704379
+def nested_set(dic, keys, value):
+    for key in keys[:-1]:
+        dic = dic.setdefault(key, {})
+    dic[keys[-1]] = value
+
+
+def load_data_to_nested_dict(path, match=None, sep="-", **kwargs):
+    flist = os.listdir(os.path.join(path))
+
+    if not match is None:
+        flist_match = []
+        if isinstance(match, str):
+            match = [match]
+        for m in match:
+            flist_match = flist_match + [f for f in flist if fnmatch.fnmatch(f, m)]
+        flist = flist_match
+
+    # initialize dict
+    out_dict = {}
+    for f in flist:  # add a fastprogress bar
+        print("Loading %s" % f)
+        f_clean = os.path.splitext(f)[0]
+        k_list = f_clean.split(sep)
+        f_path = os.path.join(path, f)
+        nested_set(out_dict, k_list, xr.open_zarr(f_path, **kwargs))
+    return out_dict
+
+
+def flatten_dict(d, parent_key="", sep="-"):
+    """flatten a dict by concatenating nested keys with seperator `sep`"""
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def rechunker_wrapper(source_store, target_store, temp_store, chunks=None, mem="2GiB", consolidated=False, verbose=False):
+    # 4GB is based on a node on tigercpu (40 cores/192GB RAM)
+    # but wait, should this be per worker? Let me adjust that higher...
+
+    # convert str to paths
+    def maybe_convert_to_path(p):
+        if isinstance(p, str):
+            return pathlib.Path(p)
+        else:
+            return p
+
+    source_store = maybe_convert_to_path(source_store)
+    target_store = maybe_convert_to_path(target_store)
+    temp_store = maybe_convert_to_path(temp_store)
+
+    # erase target and temp stores
+    if temp_store.exists():
+        shutil.rmtree(temp_store)
+
+    if target_store.exists():
+        shutil.rmtree(target_store)
+
+
+    if isinstance(source_store, xr.Dataset):
+        g = source_store  # trying to work directly with a dataset
+        ds_chunk = g
+    else:
+        g = zarr.group(str(source_store))
+        # get the correct shape from loading the store as xr.dataset and parse the chunks
+        ds_chunk = xr.open_zarr(str(source_store))
+        
+    # preprocess chunks
+    if chunks is None:
+        chunks = standard_chunks()
+    # this should be able to parse -1 as full length chunks (maybe implement that upstream)
+#     for di, ch in chunks.items():
+#         if ch == -1:
+#             chunks[di] = len(source_store[di])
+
+    # convert all paths to strings
+    source_store = str(source_store)
+    target_store = str(target_store)
+    temp_store = str(temp_store)
+
+    group_chunks = {}
+    # old version in tuples which is needed for dataset input (https://github.com/pangeo-data/rechunker/issues/59)
+    #     for var in ds_chunk.variables:
+    #         # pick appropriate chunks from above, and default to full length chunks for dimensions that are not in `chunks` above.
+    #         group_chunks[var] = tuple([chunks[di] if di in chunks.keys() else len(ds_chunk[di]) for di in ds_chunk[var].dims])
+
+    # this is the better way to do it...(I should integrate this in the rechunker repo)
+    #     for var in ds_chunk.variables:
+    #         # pick appropriate chunks from above, and default to full length chunks for dimensions that are not in `chunks` above.
+    #         group_chunks[var] = {}
+    #         for di in ds_chunk[var].dims:
+    #             if di in chunks.keys():
+    #                 group_chunks[var][di] = chunks[di]
+    #             else:
+    #                 group_chunks[var][di] = len(ds_chunk[di])
+
+    # newer tuple version that also takes into account when specified chunks are larger than the array
+    for var in ds_chunk.variables:
+        # pick appropriate chunks from above, and default to full length chunks for dimensions that are not in `chunks` above.
+        group_chunks[var] = []
+        for di in ds_chunk[var].dims:
+            if di in chunks.keys():
+                if chunks[di] > len(ds_chunk[di]):
+                    group_chunks[var].append(len(ds_chunk[di]))
+                else:
+                    group_chunks[var].append(chunks[di])
+
+            else:
+                group_chunks[var].append(len(ds_chunk[di]))
+
+        group_chunks[var] = tuple(group_chunks[var])
+    if verbose:
+        print(f"Rechunking to: {group_chunks}")
+    rechunked = rechunk(g, group_chunks, mem, target_store, temp_store=temp_store)
+    rechunked.execute()
+    if consolidated:
+        if verbose:
+            print('consolidating metadata')
+        zarr.convenience.consolidate_metadata(target_store)
+    if verbose:
+        print('removing temp store')
+    shutil.rmtree(temp_store)
+    if verbose:
+        print('done')
+
+
+def rechunk_to_temp(source, store_target, store_temp=None, chunks={"time": 600, "lev": 1, "x": 180, "y": 180}, consolidated=False, mem="1536 MiB"):
+    for st in [store_temp, store_target]:
+        if st.exists():
+            shutil.rmtree(st)
+    if store_temp is None:
+        store_temp=ofolder.joinpath("rechunker_temp.zarr")
+    
+    variables = list(source.variables)
+#     print(variables)
+#     for var in variables:
+#         if "chunks" in source[var].encoding.keys():
+#             del source[var].encoding["chunks"]
+    
+    rechunker_wrapper(
+        source.unify_chunks(),
+        store_target,
+        store_temp,
+        chunks=chunks,
+        mem=mem,
+        consolidated=consolidated,
+    )
+    print("reloading")
+    return xr.open_zarr(store_target, use_cftime=True, consolidated=consolidated)
