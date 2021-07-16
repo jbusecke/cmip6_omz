@@ -13,6 +13,8 @@ dependencies:
   - xgcm
   - cf_xarray
   - numba
+  - zarr
+  - rechunker<=0.3.3
   ##############
   - Pytest
   - pip:
