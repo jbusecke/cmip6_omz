@@ -92,3 +92,7 @@ target/
 .mypy_cache/
 
 cmip6_omz/_version.py
+
+data/temp
+data/processed
+**/dask-worker-space/

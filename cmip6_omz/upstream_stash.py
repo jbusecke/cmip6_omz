@@ -395,26 +395,168 @@ def rechunker_wrapper(source_store, target_store, temp_store, chunks=None, mem="
         print('done')
 
 
-def rechunk_to_temp(source, store_target, store_temp=None, chunks={"time": 600, "lev": 1, "x": 180, "y": 180}, consolidated=False, mem="1536 MiB"):
-    for st in [store_temp, store_target]:
-        if st.exists():
-            shutil.rmtree(st)
-    if store_temp is None:
-        store_temp=ofolder.joinpath("rechunker_temp.zarr")
+def rechunk_to_temp(
+    source,
+    store_target,
+    store_temp=None,
+    chunks={"time": 6000, "lev": 100, "x":200,"y": 1}, #This cant handle -1 yet...
+    consolidated=False,
+    overwrite=True,
+    mem="1536 MiB"):
     
-    variables = list(source.variables)
-#     print(variables)
-#     for var in variables:
-#         if "chunks" in source[var].encoding.keys():
-#             del source[var].encoding["chunks"]
     
-    rechunker_wrapper(
-        source.unify_chunks(),
-        store_target,
-        store_temp,
-        chunks=chunks,
-        mem=mem,
-        consolidated=consolidated,
-    )
-    print("reloading")
+    if not overwrite and store_target.exists():
+        print('rechunk_to_temp:rechunked store exists. Not overwriting')
+    else:
+        for st in [store_temp, store_target]:
+            if st.exists():
+                shutil.rmtree(st)
+
+    #     # Hmmm this is a bit confusing...
+    #     if store_temp is None:
+    #         store_temp=ofolder.joinpath("rechunker_temp.zarr")
+
+        variables = list(source.variables)
+    #     print(variables)
+    #     for var in variables:
+    #         if "chunks" in source[var].encoding.keys():
+    #             del source[var].encoding["chunks"]
+        # TODO: Check if this still hasnt been addressed in xarray?
+        rechunker_wrapper(
+            source,
+            store_target,
+            store_temp,
+            chunks=chunks,
+            mem=mem,
+            consolidated=consolidated,
+        )
     return xr.open_zarr(store_target, use_cftime=True, consolidated=consolidated)
+
+#==============
+# cmip6_pp mods
+#==============
+import numpy as np
+import xarray as xr
+from cmip6_preprocessing.postprocessing import exact_attrs, combine_datasets
+
+# rewrite concat_members
+def concat_members(
+    ds_dict,
+    match_attr_ignore=[],
+    concat_kwargs={},
+):
+    """Given a dictionary of datasets, this function merges all available ensemble members
+    (given in seperate datasets) into a single dataset for each combination of attributes,
+    like source_id, grid_label, etc. but with concatnated members.
+    CAUTION: If members do not have the same dimensions (e.g. longer run time for some members),
+    this can result in poor dask performance (see: https://github.com/jbusecke/cmip6_preprocessing/issues/58)
+    Parameters
+    ----------
+    ds_dict : dict
+        Dictionary of xarray datasets.
+    concat_kwargs : dict
+        Optional arguments passed to xr.concat.
+    Returns
+    -------
+    dict
+        A new dict of xr.Datasets with all datasets from `ds_dict`, but with concatenated members and adjusted keys.
+    """
+    # TODO: convert str to list maybe
+    match_attr_ignore.extend(['variant_label'])
+    match_attrs = [ma for ma in exact_attrs if ma not in match_attr_ignore]
+
+    # set defaults
+    concat_kwargs.setdefault(
+        "combine_attrs", "drop_conflicts"
+    )  # if the size differs throw an error. Requires xarray >=0.17.0
+
+    return combine_datasets(
+        ds_dict,
+        xr.concat,
+        combine_func_args=(
+            ["member_id"]
+        ),  # I dont like this. Its confusing to have two different dimension names
+        combine_func_kwargs=concat_kwargs,
+        match_attrs=match_attrs,
+    )
+
+
+def _pick_first_member(ds_list, **kwargs):
+    idx = 0
+    # only pick the ones that are fully concatenated
+    while (
+        str(ds_list[idx].time.to_index()[-1]) < "2090"
+        or str(ds_list[idx].time.to_index()[0]) > "1901"
+    ):
+        # print(ds_list[idx].attrs)
+        idx += 1
+    return ds_list[idx]
+
+
+def pick_first_member(ddict):
+    return combine_datasets(
+        ddict,
+        _pick_first_member,
+        match_attrs=["source_id", "grid_label", "table_id"],
+    )
+
+def _maybe_str_to_list(a):
+    if isinstance(a, list):
+        return a
+    else:
+        return [a]
+
+
+# custom define function that sorts input by time...
+def _concat_sorted(ds_list, **kwargs):
+    # extract the first date
+    start_dates = [str(ds.time.to_index()[0]) for ds in ds_list]
+    sorted_idx = np.argsort(start_dates)
+    ds_list_sorted = [ds_list[i] for i in sorted_idx]
+    return xr.concat(ds_list_sorted, "time", **kwargs)
+
+
+def concat_experiments(
+    ds_dict,
+    exclude_attrs=[],
+    concat_kwargs={},
+):
+    """Given a dictionary of datasets, this function merges all available ensemble members
+    (given in seperate datasets) into a single dataset for each combination of attributes,
+    like source_id, grid_label, etc. but with concatnated members.
+    CAUTION: If members do not have the same dimensions (e.g. longer run time for some members),
+    this can result in poor dask performance (see: https://github.com/jbusecke/cmip6_preprocessing/issues/58)
+    Parameters
+    ----------
+    ds_dict : dict
+        Dictionary of xarray datasets.
+    exclude_attrs : list
+        List of attributes that should be excluded from matching. This is necessary to nest different
+        combination wrappers (which might eliminate certain attributes in the process).
+    concat_kwargs : dict
+        Optional arguments passed to xr.concat.
+    Returns
+    -------
+    dict
+        A new dict of xr.Datasets with all datasets from `ds_dict`, but with concatenated members and adjusted keys.
+    """
+    exclude_attrs = _maybe_str_to_list(exclude_attrs)
+
+    match_attrs = [
+        ma for ma in exact_attrs if ma not in ["experiment_id"] + exclude_attrs
+    ]
+
+    # set defaults
+    concat_kwargs.setdefault(
+        "combine_attrs",
+        "drop_conflicts",
+    )  # if the size differs throw an error. Requires xarray >=0.17.0
+    concat_kwargs.setdefault("compat", "override")
+    concat_kwargs.setdefault("coords", "minimal")
+
+    return combine_datasets(
+        ds_dict,
+        _concat_sorted,
+        combine_func_kwargs=concat_kwargs,
+        match_attrs=match_attrs,
+    )
