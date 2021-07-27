@@ -16,7 +16,7 @@ dependencies:
   - scipy
   - dask
   - netcdf4
-  - pandas
+  - pandas<1.3.0 # had numerous problems with the time indexing...
   - matplotlib
   - cmocean
   - regionmask
@@ -34,4 +34,7 @@ dependencies:
   - xarrayutils
   - intake-esm
   - xgcm
-  - cmip6_preprocessing
+  #- cmip6_preprocessing
+  - pip
+  - pip:
+      - git+https://github.com/jbusecke/cmip6_preprocessing.git
