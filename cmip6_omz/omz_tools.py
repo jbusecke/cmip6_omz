@@ -120,12 +120,15 @@ def align_missing(ds_in):
     # Due to the interpolation between `gr` and `gn`, we have to make sure that all data variables are masked in the same way!
     
     # its probably fine to only look at a few time steps at the beginning and end
-    ds_mask = xr.concat([ds_in.isel(time=slice(0,36)), ds_in.isel(time=slice(-36, None))], 'time')
+    if 'time' in ds_in.dims:
+        ds_mask = xr.concat([ds_in.isel(time=slice(0,36)), ds_in.isel(time=slice(-36, None))], 'time')
+    else:
+        ds_mask = ds_in
 
     # for generalization np.logical_or.reduce((x, y, z))https://stackoverflow.com/questions/20528328/numpy-logical-or-for-more-than-two-arguments
     combo_nanmask = np.logical_or(
-        np.isnan(ds_mask.o2).all("time").load(),
-        np.isnan(ds_mask.thetao).all("time").load(), # the `rho` function returns nan when one of t/s is nan, so we only need to chcek one of them
+        np.isnan(ds_mask.o2).all("time" if 'time' in ds_in.dims else []).load(),
+        np.isnan(ds_mask.thetao).all("time" if 'time' in ds_in.dims else []).load(), # the `rho` function returns nan when one of t/s is nan, so we only need to chcek one of them
     )
     try:
         plt.figure()
