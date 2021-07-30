@@ -8,6 +8,7 @@ dependencies:
   - scipy
   - xarray
   - cmip6_preprocessing
+  - cartopy
   - xarrayutils
   - regionmask
   - xgcm
