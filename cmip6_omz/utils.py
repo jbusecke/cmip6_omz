@@ -13,6 +13,12 @@ def cmip6_collection(zarr=False):
             url = "/home/jbusecke/projects/cmip_data_management_princeton/catalogs/tigressdata-zarr-cmip6.json"
         else:
             url = "/home/jbusecke/projects/cmip_data_management_princeton/catalogs/tigressdata-cmip6.json"
+    elif "jupyter.rc" in hostname:
+        # testing if this works on jupyterrc?
+        if zarr:
+            url = "/home/jbusecke/projects/cmip_data_management_princeton/catalogs/tigressdata-zarr-cmip6.json"
+        else:
+            url = "/home/jbusecke/projects/cmip_data_management_princeton/catalogs/tigressdata-cmip6.json"
     elif "jupyter-" in hostname:
         url = "https://storage.googleapis.com/cmip6/pangeo-cmip6.json"
     return url
