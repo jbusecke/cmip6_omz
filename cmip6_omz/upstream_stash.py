@@ -15,18 +15,62 @@ import pathlib
 
 from cmip6_preprocessing.drift_removal import remove_trend
 
-def sigma_spacing():
-    """Return a fine global density (sigma_0) spacing"""
-    dsigma = 0.05
-    # fine values may not be suitable for time resolved version
-    # will result in very large files
-    return np.hstack(
-        [
-            np.array([19.0 - (dsigma / 2)]),
-            np.arange(24.5 - (dsigma / 2), 28.0 + (dsigma / 2), dsigma),
-            np.array([30.0 + (dsigma / 2)]),
-        ]
-    )
+# def sigma_spacing():
+#     """Return a fine global density (sigma_0) spacing"""
+#     dsigma = 0.05
+#     # fine values may not be suitable for time resolved version
+#     # will result in very large files
+#     return np.hstack(
+#         [
+#             np.array([19.0 - (dsigma / 2)]),
+#             np.arange(24.5 - (dsigma / 2), 28.0 + (dsigma / 2), dsigma),
+#             np.array([30.0 + (dsigma / 2)]),
+#         ]
+#     )
+
+def transform_wrapper(
+    ds_in,
+    intensive_vars=[
+        "thetao",
+        "o2",
+        "so",
+        "agessc",
+    ],
+    sigma_bins=None
+):
+    """This one stays here? Might be too specific for xgcm for now."""
+    
+#     sigma_bins = fine_sigma_bins
+    #sigma_bins = np.array([0, 24.5, 26.5, 27.65, 100])
+    #sigma_bins = np.array([0, 23.0, 24.5, 25.5, 26.5, 26.65, 26.7, 27.4, 27.65, 27.8, 100])
+    # define variables to be averaged (intensive quantities)
+    intensive_vars = [
+        "thetao",
+        "o2",
+        "so",
+        "agessc",
+    ]  # add 'uo', 'agessc' etc?
+
+    intensive_vars = [v for v in intensive_vars if v in ds_in.data_vars]
+
+    for iv in intensive_vars:
+        dz = (xr.ones_like(ds_in[iv]) * ds_in.dz_t).where(~np.isnan(ds_in[iv]))
+        ds_in[iv] = ds_in[iv] * dz
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ds_out = xgcm_transform_wrapper(
+            ds_in,
+            extensive_vars=["omz_thickness"] + intensive_vars,
+            target=sigma_bins,
+        )
+
+    # reconvert the same variables
+    dz = ds_out.dz_t
+    for iv in intensive_vars:
+        ds_out[iv] = ds_out[iv] / dz
+    return ds_out
+
 
 
 def xgcm_transform_wrapper(ds, extensive_vars=[], target=None, target_data=None):
