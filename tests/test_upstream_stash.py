@@ -1,8 +1,9 @@
 import pytest
 import numpy as np
 import xarray as xr
+import cf_xarray
 
-from cmip6_omz.upstream_stash import xgcm_transform_wrapper
+from cmip6_omz.upstream_stash import xgcm_transform_wrapper, construct_static_dz
 from cmip6_omz.omz_tools import omz_thickness
 
 @pytest.fixture
@@ -71,3 +72,13 @@ def test_xgcm_transform_wrapper2(dummy_ds):
     vol_z = (ds.omz_thickness * ds.areacello).sum(['x', 'y', 'lev']).load()
 
     xr.testing.assert_allclose(vol_sigma, vol_z, rtol = 1e-02) 
+
+    
+def test_construct_static_dz():
+    lev_verts = np.array([0, 10, 250, 4000])
+    lev_bounds = xr.DataArray([lev_verts[:-1],lev_verts[1:]], dims=['bnds', 'lev'])
+    ds = xr.Dataset().assign_coords(lev_bounds=lev_bounds)
+    expected = xr.DataArray([10, 240, 3750], dims=['lev'], name='thkcello')
+    
+    ds_reconstructed = construct_static_dz(ds)
+    xr.testing.assert_equal(ds_reconstructed.thkcello.reset_coords(drop=True), expected)

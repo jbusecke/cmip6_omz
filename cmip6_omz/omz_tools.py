@@ -103,6 +103,20 @@ def omz_thickness(
     ]
     return xr.concat(datasets, dim="o2_bin")
 
+# TODO Move the old version into tests and ensure the results stay the same
+def omz_thickness_efficient(
+    ds,
+    dz_var = 'dz_t',
+    o2_var="o2",
+    bin_chunks=1,
+    o2_bins=np.array([5, 10, 20, 40, 60, 80, 100, 120, 140])
+):
+    conversion_factor = 1 / convert_mol_m3_mymol_kg(xr.DataArray([1])).data
+    o2_bins_converted_raw = o2_bins * conversion_factor
+    o2_bins_converted = xr.DataArray(o2_bins_converted_raw, dims=['o2_bin'], coords={'o2_bin':o2_bins})# can I generalize this with pint?
+    o2_bins_converted = o2_bins_converted.chunk({'o2_bin':bin_chunks})
+    return ds[dz_var].where(ds[o2_var]<=o2_bins_converted, 0)
+
 
 
 # 
@@ -121,7 +135,7 @@ def align_missing(ds_in):
     
     # its probably fine to only look at a few time steps at the beginning and end
     if 'time' in ds_in.dims:
-        ds_mask = xr.concat([ds_in.isel(time=slice(0,36)), ds_in.isel(time=slice(-36, None))], 'time')
+        ds_mask = xr.concat([ds_in.isel(time=slice(0,2)), ds_in.isel(time=slice(-2, None))], 'time')
     else:
         ds_mask = ds_in
 

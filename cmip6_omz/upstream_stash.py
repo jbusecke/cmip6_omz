@@ -483,58 +483,62 @@ import numpy as np
 import xarray as xr
 from cmip6_preprocessing.postprocessing import exact_attrs, combine_datasets
 
-# rewrite concat_members
-def concat_members(
-    ds_dict,
-    match_attr_ignore=[],
-    concat_kwargs={},
-):
-    """Given a dictionary of datasets, this function merges all available ensemble members
-    (given in seperate datasets) into a single dataset for each combination of attributes,
-    like source_id, grid_label, etc. but with concatnated members.
-    CAUTION: If members do not have the same dimensions (e.g. longer run time for some members),
-    this can result in poor dask performance (see: https://github.com/jbusecke/cmip6_preprocessing/issues/58)
-    Parameters
-    ----------
-    ds_dict : dict
-        Dictionary of xarray datasets.
-    concat_kwargs : dict
-        Optional arguments passed to xr.concat.
-    Returns
-    -------
-    dict
-        A new dict of xr.Datasets with all datasets from `ds_dict`, but with concatenated members and adjusted keys.
-    """
-    # TODO: convert str to list maybe
-    match_attr_ignore.extend(['variant_label'])
-    match_attrs = [ma for ma in exact_attrs if ma not in match_attr_ignore]
+# # rewrite concat_members
+# def concat_members(
+#     ds_dict,
+#     match_attr_ignore=[],
+#     concat_kwargs={},
+# ):
+#     """Given a dictionary of datasets, this function merges all available ensemble members
+#     (given in seperate datasets) into a single dataset for each combination of attributes,
+#     like source_id, grid_label, etc. but with concatnated members.
+#     CAUTION: If members do not have the same dimensions (e.g. longer run time for some members),
+#     this can result in poor dask performance (see: https://github.com/jbusecke/cmip6_preprocessing/issues/58)
+#     Parameters
+#     ----------
+#     ds_dict : dict
+#         Dictionary of xarray datasets.
+#     concat_kwargs : dict
+#         Optional arguments passed to xr.concat.
+#     Returns
+#     -------
+#     dict
+#         A new dict of xr.Datasets with all datasets from `ds_dict`, but with concatenated members and adjusted keys.
+#     """
+#     # TODO: convert str to list maybe
+#     match_attr_ignore.extend(['variant_label'])
+#     match_attrs = [ma for ma in exact_attrs if ma not in match_attr_ignore]
 
-    # set defaults
-    concat_kwargs.setdefault(
-        "combine_attrs", "drop_conflicts"
-    )  # if the size differs throw an error. Requires xarray >=0.17.0
+#     # set defaults
+#     concat_kwargs.setdefault(
+#         "combine_attrs", "drop_conflicts"
+#     )  # if the size differs throw an error. Requires xarray >=0.17.0
 
-    return combine_datasets(
-        ds_dict,
-        xr.concat,
-        combine_func_args=(
-            ["member_id"]
-        ),  # I dont like this. Its confusing to have two different dimension names
-        combine_func_kwargs=concat_kwargs,
-        match_attrs=match_attrs,
-    )
+#     return combine_datasets(
+#         ds_dict,
+#         xr.concat,
+#         combine_func_args=(
+#             ["member_id"]
+#         ),  # I dont like this. Its confusing to have two different dimension names
+#         combine_func_kwargs=concat_kwargs,
+#         match_attrs=match_attrs,
+#     )
 
 
+# def _pick_first_member(ds_list, **kwargs):
+#     idx = 0
+#     # only pick the ones that are fully concatenated
+#     while (
+#         str(ds_list[idx].time.to_index()[-1]) < "2090"
+#         or str(ds_list[idx].time.to_index()[0]) > "1901"
+#     ):
+#         # print(ds_list[idx].attrs)
+#         idx += 1
+#     return ds_list[idx]
 def _pick_first_member(ds_list, **kwargs):
-    idx = 0
-    # only pick the ones that are fully concatenated
-    while (
-        str(ds_list[idx].time.to_index()[-1]) < "2090"
-        or str(ds_list[idx].time.to_index()[0]) > "1901"
-    ):
-        # print(ds_list[idx].attrs)
-        idx += 1
-    return ds_list[idx]
+    members = [ds.variant_label for ds in ds_list]
+    first_member_idx = np.argmin(members)
+    return ds_list[first_member_idx]
 
 
 def pick_first_member(ddict):
@@ -552,7 +556,7 @@ def _maybe_str_to_list(a):
 
 
 # custom define function that sorts input by time...
-def _concat_sorted(ds_list, **kwargs):
+def _concat_sorted_time(ds_list, **kwargs):
     # extract the first date
     start_dates = [str(ds.time.to_index()[0]) for ds in ds_list]
     sorted_idx = np.argsort(start_dates)
@@ -600,7 +604,16 @@ def concat_experiments(
 
     return combine_datasets(
         ds_dict,
-        _concat_sorted,
+        _concat_sorted_time,
         combine_func_kwargs=concat_kwargs,
         match_attrs=match_attrs,
     )
+
+
+import cf_xarray
+def construct_static_dz(ds):
+    lev_vertices = cf_xarray.bounds_to_vertices(ds.lev_bounds, 'bnds').load()
+    dz_t = lev_vertices.diff('lev_vertices')
+    ds = ds.assign_coords(thkcello=('lev', dz_t.data))
+    return ds
+    
