@@ -3,7 +3,7 @@ import numpy as np
 import xarray as xr
 import cf_xarray
 
-from cmip6_omz.upstream_stash import xgcm_transform_wrapper
+from cmip6_omz.upstream_stash import xgcm_transform_wrapper, construct_static_dz
 from cmip6_omz.omz_tools import omz_thickness
 
 @pytest.fixture
