@@ -7,7 +7,9 @@ import warnings
 
 from cmip6_preprocessing.preprocessing import correct_lon
 
-from omz_tools import convert_o2_ml_l
+import sys
+sys.path.append("../")
+from cmip6_omz.omz_tools import convert_o2_ml_l
 
 # TODO: We are planning on integrating this functionality in xgcm at a later point. Check back in time to see if we can refactor this.
 from xarrayutils.utils import dll_dist
