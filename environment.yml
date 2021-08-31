@@ -34,6 +34,7 @@ dependencies:
   - xarrayutils
   - intake-esm
   - xgcm
+  - pint-xarray
   #- cmip6_preprocessing
   - pip
   - pip:

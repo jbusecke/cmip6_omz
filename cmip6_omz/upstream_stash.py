@@ -29,7 +29,7 @@ from cmip6_preprocessing.drift_removal import remove_trend
 #     )
 
 def transform_wrapper(
-    ds_in,
+    ds_raw,
     intensive_vars=[
         "thetao",
         "o2",
@@ -50,6 +50,8 @@ def transform_wrapper(
         "so",
         "agessc",
     ]  # add 'uo', 'agessc' etc?
+    
+    ds_in = ds_raw.copy() # dont modify the original
 
     intensive_vars = [v for v in intensive_vars if v in ds_in.data_vars]
 
@@ -616,4 +618,23 @@ def construct_static_dz(ds):
     dz_t = lev_vertices.diff('lev_vertices')
     ds = ds.assign_coords(thkcello=('lev', dz_t.data))
     return ds
+
+
+from fastprogress.fastprogress import progress_bar
+from zarr.convenience import consolidate_metadata
+
+def append_write_zarr(ds, store, split_chunks, split_dim='time', consolidate=True, safe_chunks=False):
+    """Save a dataset with a loop to avoid blowing up complicated dask graphs"""
+    splits = list(range(0, len(ds[split_dim]), split_chunks))
+    splits.append(None)
+    datasets = []
+    for ii in range(len(splits)-1):
+        datasets.append(ds.isel({split_dim:slice(splits[ii], splits[ii+1])}))
     
+    # .to_zarr needs that we write the first datasets without appending
+    datasets[0].to_zarr(store, mode='w', safe_chunks=safe_chunks)
+    for ds_sub in progress_bar(datasets[1:]):
+        ds_sub.to_zarr(store, mode='a', append_dim=split_dim, safe_chunks=safe_chunks)
+    
+    if consolidate:
+        consolidate_metadata(str(store))
