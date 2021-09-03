@@ -9,6 +9,7 @@ dependencies:
   - xarray
   - cartopy
   - cmip6_preprocessing
+  - fastprogress
   - xarrayutils
   - regionmask
   - xgcm
