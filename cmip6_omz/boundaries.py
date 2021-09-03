@@ -37,20 +37,31 @@ def _find_boundaries(z, o2, threshold, output_size, output):
         if o2[idx] > threshold:
             forward_idx = idx
             pass
-
-    backward_o2 = o2[backward_idx : min_idx + 1]
-    backward_z = z[backward_idx : min_idx + 1]
-    forward_o2 = o2[min_idx : forward_idx + 1]
-    forward_z = z[min_idx : forward_idx + 1]
-
+    
     def sort_and_interp(th, o2, z):
         if o2[-1] < o2[0]:
             o2 = o2[::-1]
             z = z[::-1]
         return np.interp(th, o2, z)
 
-    back_z = sort_and_interp(threshold, backward_o2, backward_z)
-    forw_z = sort_and_interp(threshold, forward_o2, forward_z)
+    # if the indexes are still equal to `min_idx` it means
+    # that in this direction there was no value smaller than threshold
+    # in that case the omz extends to the bottom/top and the values should be set to nan
+    if backward_idx == min_idx:
+        back_z = np.nan
+
+    else:
+        backward_o2 = o2[backward_idx : min_idx + 1]
+        backward_z = z[backward_idx : min_idx + 1]
+        back_z = sort_and_interp(threshold, backward_o2, backward_z)
+
+    if forward_idx == min_idx:
+        forw_z = np.nan
+    else:
+        forward_o2 = o2[min_idx : forward_idx + 1]
+        forward_z = z[min_idx : forward_idx + 1]
+        forw_z = sort_and_interp(threshold, forward_o2, forward_z)
+    
     output[2] = back_z
     output[3] = forw_z
 
