@@ -476,6 +476,60 @@ def rechunk_to_temp(
         )
     return xr.open_zarr(store_target, use_cftime=True, consolidated=consolidated)
 
+from fastprogress.fastprogress import progress_bar
+from zarr.convenience import consolidate_metadata
+
+import numpy as np
+import pathlib
+import zarr
+
+def _check_zarr_complete(store):
+    zg = zarr.open_group(str(store))
+    arrays = list(zg.arrays())
+    complete = True
+    for array in arrays:
+        va = array[0]# variable name
+        info_items = zg[va].info_items()
+        # extract chunks initialized
+        chunks_initialized = np.array([a for a in info_items if a[0]=='Chunks initialized'][0][1].split('/')).astype(int)
+        all_initialized = np.diff(np.array(chunks_initialized))
+        if all_initialized != 0:
+            complete = False
+            print(f'{va} not fully written')
+    return complete
+    
+## TODO: I need a clever test, that writes a store with an incomplete chunk
+def zarr_exists(store ,check_complete=True, consolidated=True):
+    "Checks if a zarr store exists and is completely written"""
+    if isinstance(store, str):
+        store = pathlib.Path(store)
+        
+    exists = store.exists()
+    if not exists:
+        return False
+    else:
+        if consolidated:
+            exists = store.joinpath('.zmetadata').exists()
+        
+        if check_complete:
+            exists = _check_zarr_complete(store)
+    return exists 
+
+def append_write_zarr(ds, store, split_chunks, split_dim='time', consolidate=True, safe_chunks=False):
+    """Save a dataset with a loop to avoid blowing up complicated dask graphs"""
+    splits = list(range(0, len(ds[split_dim]), split_chunks))
+    splits.append(None)
+    datasets = []
+    for ii in range(len(splits)-1):
+        datasets.append(ds.isel({split_dim:slice(splits[ii], splits[ii+1])}))
+    
+    # .to_zarr needs that we write the first datasets without appending
+    datasets[0].to_zarr(store, mode='w', safe_chunks=safe_chunks)
+    for ds_sub in progress_bar(datasets[1:]):
+        ds_sub.to_zarr(store, mode='a', append_dim=split_dim, safe_chunks=safe_chunks)
+    
+    if consolidate:
+        consolidate_metadata(str(store))
 #==============
 # cmip6_pp mods
 #==============
@@ -557,11 +611,20 @@ def _maybe_str_to_list(a):
 
 # custom define function that sorts input by time...
 def _concat_sorted_time(ds_list, **kwargs):
-    # extract the first date
-    start_dates = [str(ds.time.to_index()[0]) for ds in ds_list]
-    sorted_idx = np.argsort(start_dates)
-    ds_list_sorted = [ds_list[i] for i in sorted_idx]
-    return xr.concat(ds_list_sorted, "time", **kwargs)
+    # if an already combined dataset (or a single metric) is passed, 
+    # return unmodified
+    if len(ds_list) == 1:
+        return ds_list[0]
+    else:
+        # extract the first date
+        start_dates = [str(ds.time.to_index()[0]) for ds in ds_list]
+        sorted_idx = np.argsort(start_dates)
+        ds_list_sorted = [ds_list[i] for i in sorted_idx]
+        return xr.concat(ds_list_sorted, "time", **kwargs)
+    
+def concat_time(ds_dict):
+    """Concatenates time, for e.g. datasets loaded from split netcdfs"""
+    return combine_datasets(ds_dict, _concat_sorted_time)
 
 
 def concat_experiments(
@@ -616,4 +679,6 @@ def construct_static_dz(ds):
     dz_t = lev_vertices.diff('lev_vertices')
     ds = ds.assign_coords(thkcello=('lev', dz_t.data))
     return ds
+    
+    
     
