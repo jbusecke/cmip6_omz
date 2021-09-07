@@ -493,7 +493,6 @@ def _check_zarr_complete(store):
         # extract chunks initialized
         chunks_initialized = np.array([a for a in info_items if a[0]=='Chunks initialized'][0][1].split('/')).astype(int)
         all_initialized = np.diff(np.array(chunks_initialized))
-        print(f'{va} {chunks_initialized}')
         if all_initialized != 0:
             complete = False
             print(f'{va} not fully written')
