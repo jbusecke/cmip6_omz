@@ -10,6 +10,7 @@ dependencies:
   - cmip6_preprocessing
   - cartopy
   - xarrayutils
+  - fastprogress
   - regionmask
   - xgcm
   - cf_xarray
