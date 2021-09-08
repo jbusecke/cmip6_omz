@@ -14,8 +14,8 @@ import warnings
 import xarray as xr
 #import matplotlib.pyplot as plt
 
-import sys
-sys.path.append("../")
+#import sys
+#sys.path.append("../")
 from cmip6_omz.units import(
     convert_o2_ml_l,
     convert_mol_m3_mymol_kg,
