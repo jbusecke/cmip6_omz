@@ -32,6 +32,7 @@ dependencies:
   - fastjmd95
   - nc-time-axis
   - xarrayutils
+  - intake
   - intake-esm
   - xgcm
   #- cmip6_preprocessing
