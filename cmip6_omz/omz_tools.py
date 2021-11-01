@@ -210,3 +210,31 @@ def vol_consistency_check_wrapper(ds, ds_sigma):
     else:
         consistent = True
     return consistent
+
+
+def o2sat(thetao, so, rho_0=1025.0):
+
+    """Calculate oxygen concentration at saturation (o2sat).
+
+    Parameters
+    ----------
+    thetao : xr.Dataarray
+        Potential temperature references to sea level pressure.
+    so : xr.Dataarray
+        Practical Salinity.
+    rho_0: float
+        Reference salinity used for the unit conversion. Defaults to 1035 kg m^-3
+
+    Returns
+    -------
+    o2sat : xr.Dataarray
+        calculated saturation oxygen concentrations in mol m^-3
+
+    """
+
+    o2sat = xr.apply_ufunc(
+        gsw.O2sol_SP_pt, so, thetao, dask="parallelized", output_dtypes=[thetao.dtype]
+    )
+
+    o2sat = o2sat * rho_0 / 1e6
+    return o2sat
