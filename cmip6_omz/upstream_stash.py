@@ -491,11 +491,16 @@ def _check_zarr_complete(store):
         va = array[0]# variable name
         info_items = zg[va].info_items()
         # extract chunks initialized
-        chunks_initialized = np.array([a for a in info_items if a[0]=='Chunks initialized'][0][1].split('/')).astype(int)
+        chunks_initialized = np.array([a for a in info_items if a[0]=='Chunks initialized'][0][1].split('/')).astype(int)        
         all_initialized = np.diff(np.array(chunks_initialized))
-        if all_initialized != 0:
+        # I had a case with 3/1 chunks initialized...not sure where that was from...
+        # TODO: Find out under which circumstances this could happen and if >0 is ok as criterion. 
+        # This was a string dimension variable in the case I encountered
+        if all_initialized > 0: 
+            
             complete = False
             print(f'{va} not fully written')
+#             print(info_items)
     return complete
     
 ## TODO: I need a clever test, that writes a store with an incomplete chunk
@@ -627,55 +632,56 @@ def concat_time(ds_dict):
     return combine_datasets(ds_dict, _concat_sorted_time)
 
 
-def concat_experiments(
-    ds_dict,
-    exclude_attrs=[],
-    concat_kwargs={},
-):
-    """Given a dictionary of datasets, this function merges all available ensemble members
-    (given in seperate datasets) into a single dataset for each combination of attributes,
-    like source_id, grid_label, etc. but with concatnated members.
-    CAUTION: If members do not have the same dimensions (e.g. longer run time for some members),
-    this can result in poor dask performance (see: https://github.com/jbusecke/cmip6_preprocessing/issues/58)
-    Parameters
-    ----------
-    ds_dict : dict
-        Dictionary of xarray datasets.
-    exclude_attrs : list
-        List of attributes that should be excluded from matching. This is necessary to nest different
-        combination wrappers (which might eliminate certain attributes in the process).
-    concat_kwargs : dict
-        Optional arguments passed to xr.concat.
-    Returns
-    -------
-    dict
-        A new dict of xr.Datasets with all datasets from `ds_dict`, but with concatenated members and adjusted keys.
-    """
-    exclude_attrs = _maybe_str_to_list(exclude_attrs)
+#!!! Use the one in cmip6_pp
+# def concat_experiments(
+#     ds_dict,
+#     exclude_attrs=[],
+#     concat_kwargs={},
+# ):
+#     """Given a dictionary of datasets, this function merges all available ensemble members
+#     (given in seperate datasets) into a single dataset for each combination of attributes,
+#     like source_id, grid_label, etc. but with concatnated members.
+#     CAUTION: If members do not have the same dimensions (e.g. longer run time for some members),
+#     this can result in poor dask performance (see: https://github.com/jbusecke/cmip6_preprocessing/issues/58)
+#     Parameters
+#     ----------
+#     ds_dict : dict
+#         Dictionary of xarray datasets.
+#     exclude_attrs : list
+#         List of attributes that should be excluded from matching. This is necessary to nest different
+#         combination wrappers (which might eliminate certain attributes in the process).
+#     concat_kwargs : dict
+#         Optional arguments passed to xr.concat.
+#     Returns
+#     -------
+#     dict
+#         A new dict of xr.Datasets with all datasets from `ds_dict`, but with concatenated members and adjusted keys.
+#     """
+#     exclude_attrs = _maybe_str_to_list(exclude_attrs)
 
-    match_attrs = [
-        ma for ma in exact_attrs if ma not in ["experiment_id"] + exclude_attrs
-    ]
+#     match_attrs = [
+#         ma for ma in exact_attrs if ma not in ["experiment_id"] + exclude_attrs
+#     ]
 
-    # set defaults
-    concat_kwargs.setdefault(
-        "combine_attrs",
-        "drop_conflicts",
-    )  # if the size differs throw an error. Requires xarray >=0.17.0
-    concat_kwargs.setdefault("compat", "override")
-    concat_kwargs.setdefault("coords", "minimal")
+#     # set defaults
+#     concat_kwargs.setdefault(
+#         "combine_attrs",
+#         "drop_conflicts",
+#     )  # if the size differs throw an error. Requires xarray >=0.17.0
+#     concat_kwargs.setdefault("compat", "override")
+#     concat_kwargs.setdefault("coords", "minimal")
 
-    return combine_datasets(
-        ds_dict,
-        _concat_sorted_time,
-        combine_func_kwargs=concat_kwargs,
-        match_attrs=match_attrs,
-    )
+#     return combine_datasets(
+#         ds_dict,
+#         _concat_sorted_time,
+#         combine_func_kwargs=concat_kwargs,
+#         match_attrs=match_attrs,
+#     )
 
 
 import cf_xarray
-def construct_static_dz(ds):
-    lev_vertices = cf_xarray.bounds_to_vertices(ds.lev_bounds, 'bnds').load()
+def construct_static_dz(ds, bound_coord='lev_bounds'):
+    lev_vertices = cf_xarray.bounds_to_vertices(ds[bound_coord], 'bnds').load()
     dz_t = lev_vertices.diff('lev_vertices')
     ds = ds.assign_coords(thkcello=('lev', dz_t.data))
     return ds
