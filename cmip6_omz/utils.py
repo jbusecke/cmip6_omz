@@ -50,7 +50,6 @@ def cmip6_collection(zarr=False):
     # build collection (so that the behavior is the same as in cmip6_pp
     col = intake.open_esm_datastore(url)
     
-
     if 'time_range' in col.df.columns: # only apply to netcdf catalog
         # I need to apply a more aggressive fix for entries without time_range, otherwise these will not be sorted out properly
         df = col.df.copy(deep=True)

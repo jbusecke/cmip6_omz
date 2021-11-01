@@ -491,8 +491,7 @@ def _check_zarr_complete(store):
         va = array[0]# variable name
         info_items = zg[va].info_items()
         # extract chunks initialized
-        chunks_initialized = np.array([a for a in info_items if a[0]=='Chunks initialized'][0][1].split('/')).astype(int)
-        
+        chunks_initialized = np.array([a for a in info_items if a[0]=='Chunks initialized'][0][1].split('/')).astype(int)        
         all_initialized = np.diff(np.array(chunks_initialized))
         # I had a case with 3/1 chunks initialized...not sure where that was from...
         # TODO: Find out under which circumstances this could happen and if >0 is ok as criterion. 
@@ -686,4 +685,6 @@ def construct_static_dz(ds, bound_coord='lev_bounds'):
     dz_t = lev_vertices.diff('lev_vertices')
     ds = ds.assign_coords(thkcello=('lev', dz_t.data))
     return ds
+    
+    
     
