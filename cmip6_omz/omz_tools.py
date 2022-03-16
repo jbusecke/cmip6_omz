@@ -27,7 +27,7 @@ from cmip6_preprocessing.regionmask import merged_mask
 def mask_basin(ds, region='Pacific', drop=True):
     if regionmask is None:
         raise RuntimeError("Please install the latest regionmask version")
-    basins = regionmask.defined_regions.natural_earth.ocean_basins_50
+    basins = regionmask.defined_regions.natural_earth_v4_1_0.ocean_basins_50
     mask = merged_mask(basins, ds)
     masks = {
         'Pacific':np.logical_or(mask == 2, mask == 3),
