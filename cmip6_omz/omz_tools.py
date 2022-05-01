@@ -14,7 +14,9 @@ import warnings
 import xarray as xr
 #import matplotlib.pyplot as plt
 
-from .units import(
+#import sys
+#sys.path.append("../")
+from cmip6_omz.units import(
     convert_o2_ml_l,
     convert_mol_m3_mymol_kg,
 )
@@ -84,6 +86,7 @@ def volume_consistency_checks(ds_z, ds_sigma):
     )
     omz_perc_difference = (omz_vol_post - omz_vol_pre) / omz_vol_pre * 100
     omz_perc_difference = omz_perc_difference.mean("time").load()
+        
     return vol_perc_difference, omz_perc_difference
 
 
@@ -210,7 +213,6 @@ def vol_consistency_check_wrapper(ds, ds_sigma):
     else:
         consistent = True
     return consistent
-
 
 def o2sat(thetao, so, rho_0=1025.0):
 
