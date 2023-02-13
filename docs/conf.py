@@ -34,9 +34,11 @@ author = "Julius Busecke"
 # built documents.
 # see https://pypi.org/project/setuptools-scm/ for details
 from pkg_resources import get_distribution
-release = get_distribution('cmip6_omz').version
+
+
+release = get_distribution("cmip6_omz").version
 # for example take major/minor
-version = '.'.join(release.split('.')[:2])
+version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 
