@@ -1,17 +1,16 @@
 # A module to smoothly read in obs data (could probably be handled by an intake catalog...)
 # also this should read stuff from relative paths to links in 'external' folder.
 
-import xarray as xr
-import numpy as np
 import warnings
 
-from cmip6_preprocessing.preprocessing import broadcast_lonlat
-from cmip6_preprocessing.preprocessing import correct_lon
+import numpy as np
 
-from cmip6_omz.upstream_stash import construct_static_dz
-from cmip6_omz.units import convert_mol_m3_mymol_kg
+import xarray as xr
+
 # from omz_tools import convert_o2_ml_l
-from cmip6_omz.units import convert_o2_ml_l
+from cmip6_omz.units import convert_mol_m3_mymol_kg, convert_o2_ml_l
+from cmip6_omz.upstream_stash import construct_static_dz
+from cmip6_preprocessing.preprocessing import broadcast_lonlat, correct_lon
 
 # TODO: We are planning on integrating this functionality in xgcm at a later point. Check back in time to see if we can refactor this.
 from xarrayutils.utils import dll_dist
@@ -54,8 +53,6 @@ def reconstruct_areacello(ds):
             "Reconstrution of `areacello` failed. Could not find one of `lon` or `lat` in dataset"
         )
         return None
-
-
 
 
 #
@@ -166,32 +163,38 @@ def woa13():
     return woa
 
 
-
 def load_bianchi():
-    ds_obs = xr.open_dataset('/tigress/GEOCLIM/LRGROUP/shared_data/oxygen_WOA/O2_bianchi.nc')
-    
-    ds_obs = ds_obs.set_coords(['DEPTH_bnds'])
-    
-    ds_obs = ds_obs.mean('TIME').squeeze()
+    ds_obs = xr.open_dataset(
+        "/tigress/GEOCLIM/LRGROUP/shared_data/oxygen_WOA/O2_bianchi.nc"
+    )
 
-    ds_obs = ds_obs.rename({'LONGITUDE':'x', 'LATITUDE':'y', 'DEPTH':'lev', 'O2_LINEAR':'o2', 'DEPTH_bnds':'lev_bounds'})
+    ds_obs = ds_obs.set_coords(["DEPTH_bnds"])
+
+    ds_obs = ds_obs.mean("TIME").squeeze()
+
+    ds_obs = ds_obs.rename(
+        {
+            "LONGITUDE": "x",
+            "LATITUDE": "y",
+            "DEPTH": "lev",
+            "O2_LINEAR": "o2",
+            "DEPTH_bnds": "lev_bounds",
+        }
+    )
     ds_obs = broadcast_lonlat(ds_obs)
-    
+
     print(ds_obs)
 
-    
-    
     # reconstruct metrics
     ds_obs = construct_static_dz(ds_obs)
-    ds_obs.coords['areacello'] = reconstruct_areacello(ds_obs)
-    
-        
-    ds_obs = ds_obs.drop(['TIME_bnds'])
-    
+    ds_obs.coords["areacello"] = reconstruct_areacello(ds_obs)
+
+    ds_obs = ds_obs.drop(["TIME_bnds"])
+
     # convert back to mol/m^3 😱
-    ds_obs['o2'] = ds_obs['o2'] / convert_mol_m3_mymol_kg(xr.DataArray([1])).data
+    ds_obs["o2"] = ds_obs["o2"] / convert_mol_m3_mymol_kg(xr.DataArray([1])).data
     # mask out
     mask = np.isnan(ds_obs.o2.isel(lev=2))
     ds_obs = ds_obs.where(~mask)
-    
+
     return ds_obs

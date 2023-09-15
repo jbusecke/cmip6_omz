@@ -1,13 +1,17 @@
-import pytest
 import numpy as np
+import pytest
+
 import xarray as xr
+
 from cmip6_omz.units import (
-    convert_o2_ml_l,
+    convert_mg_l_to_mymol_kg,
     convert_mol_m3_mymol_kg,
-    convert_mg_l_to_mymol_kg
+    convert_o2_ml_l,
 )
 
+
 ###Tests for cmip6-omz.units###
+
 
 @pytest.fixture
 def dummy_o2_ds():
@@ -16,20 +20,22 @@ def dummy_o2_ds():
     ds.attrs = {"units": "dummy unit"}
     return ds
 
+
 def test_convert_o2_ml_l(dummy_o2_ds):
     ds = convert_o2_ml_l(dummy_o2_ds)
     assert ds.attrs["units"] == r"$mol/kg$"
     assert (ds.dummy == dummy_o2_ds.dummy * 43.570 / 1e6).all()
 
+
 def test_convert_mol_m3_mymol_kg(dummy_o2_ds):
-    rho_0 = 1025.
+    rho_0 = 1025.0
     ds = convert_mol_m3_mymol_kg(dummy_o2_ds)
     assert ds.attrs["units"] == r"$\mu mol/kg$"
     assert (ds.dummy == dummy_o2_ds.dummy / rho_0 * 1e6).all()
 
+
 def test_convert_mg_l_to_mymol_kg(dummy_o2_ds):
-    rho_0 = 1025.
+    rho_0 = 1025.0
     ds = convert_mg_l_to_mymol_kg(dummy_o2_ds)
     assert ds.attrs["units"] == r"$\mu mol/kg$"
-    assert (ds.dummy == dummy_o2_ds.dummy * 1/32000 * rho_0/1000 * 1e6).all()
-
+    assert (ds.dummy == dummy_o2_ds.dummy * 1 / 32000 * rho_0 / 1000 * 1e6).all()
