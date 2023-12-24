@@ -1,11 +1,12 @@
 import matplotlib.pyplot as plt
+
 from cmip6_preprocessing.utils import cmip6_dataset_id
 
 
 def plot_omz_results(ds):
     dataset_id = cmip6_dataset_id(ds)
-    
-#     da = mask_pacific(ds)
+
+    #     da = mask_pacific(ds)
     ds = ds.where(abs(ds.lat) <= 30, drop=True)
 
     area = ds.areacello.fillna(0)

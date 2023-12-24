@@ -19,7 +19,7 @@ quiet = false
 color = true
 
 [tool.isort]
-known_third_party = ["numpy", "pytest", "setuptools"]
+known_third_party = ["cf_xarray", "cmip6_preprocessing", "fastprogress", "intake", "matplotlib", "numba", "numpy", "pandas", "pkg_resources", "pytest", "rechunker", "setuptools", "xarray", "xarrayutils", "xesmf", "xgcm", "zarr"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

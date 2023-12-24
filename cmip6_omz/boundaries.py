@@ -1,6 +1,7 @@
-from numba import float64, guvectorize
 import numpy as np
 import xarray as xr
+
+from numba import float64, guvectorize
 
 
 @guvectorize(

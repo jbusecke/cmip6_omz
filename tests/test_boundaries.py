@@ -1,6 +1,7 @@
 import numpy as np
-import xarray as xr
 import pytest
+import xarray as xr
+
 from cmip6_omz.boundaries import omz_boundaries
 
 

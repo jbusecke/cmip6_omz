@@ -1,19 +1,19 @@
+import collections
+import fnmatch
+import os
+import pathlib
+import shutil
+import warnings
+
+import cf_xarray
 import numpy as np
 import xarray as xr
-from xgcm import Grid
-import cf_xarray
-import warnings
-import collections
-import os
-import fnmatch
-import shutil
 import zarr
-from rechunker.api import rechunk
-import pathlib
-
-
 
 from cmip6_preprocessing.drift_removal import remove_trend
+from rechunker.api import rechunk
+from xgcm import Grid
+
 
 # def sigma_spacing():
 #     """Return a fine global density (sigma_0) spacing"""
@@ -28,6 +28,7 @@ from cmip6_preprocessing.drift_removal import remove_trend
 #         ]
 #     )
 
+
 def transform_wrapper(
     ds_in,
     intensive_vars=[
@@ -36,13 +37,13 @@ def transform_wrapper(
         "so",
         "agessc",
     ],
-    sigma_bins=None
+    sigma_bins=None,
 ):
     """This one stays here? Might be too specific for xgcm for now."""
-    
-#     sigma_bins = fine_sigma_bins
-    #sigma_bins = np.array([0, 24.5, 26.5, 27.65, 100])
-    #sigma_bins = np.array([0, 23.0, 24.5, 25.5, 26.5, 26.65, 26.7, 27.4, 27.65, 27.8, 100])
+
+    #     sigma_bins = fine_sigma_bins
+    # sigma_bins = np.array([0, 24.5, 26.5, 27.65, 100])
+    # sigma_bins = np.array([0, 23.0, 24.5, 25.5, 26.5, 26.65, 26.7, 27.4, 27.65, 27.8, 100])
     # define variables to be averaged (intensive quantities)
     intensive_vars = [
         "thetao",
@@ -72,13 +73,12 @@ def transform_wrapper(
     return ds_out
 
 
-
 def xgcm_transform_wrapper(ds, extensive_vars=[], target=None, target_data=None):
     """Return dataset binned in [target_data] space"""
 
     warnings.warn(
         "xgcm_transform_wrapper() function will be migrated to xgcm. Check xgcm soon for maintained version",
-        FutureWarning
+        FutureWarning,
     )
 
     if target_data is None:
@@ -207,11 +207,12 @@ def xgcm_transform_wrapper(ds, extensive_vars=[], target=None, target_data=None)
 ####function to cmip6_pp#########
 
 
-#Helper functions for match_and_detrend()
-#but may also be useful elsewhere
+# Helper functions for match_and_detrend()
+# but may also be useful elsewhere
 def construct_cfdate(data, units, calendar):
     date = xr.DataArray(data, attrs={"units": units, "calendar": calendar})
     return xr.decode_cf(date.to_dataset(name="time"), use_cftime=True).time
+
 
 def _get_calendar(time):
     ### This assumes that the time is decoded already
@@ -223,16 +224,15 @@ def match_and_detrend(data_dict, trend_dict, pass_variables=[], verbose=False):
     Takes CMIP6 datasets dict and a dictionary of trend datasets, and returns the detrended datasets.
     Datasets with variable in `pass_variables` are passed through unaltered.
     """
-    sep='_'
-    
-    compare_attrs = [ #should version_id also be here?
+    sep = "_"
+
+    compare_attrs = [  # should version_id also be here?
         "source_id",
         "table_id",
         "grid_label",
         "variant_label",
         "variable_id",
     ]
-
 
     data_dict_detrended = {}
     for name, ds in data_dict.items():
@@ -241,15 +241,19 @@ def match_and_detrend(data_dict, trend_dict, pass_variables=[], verbose=False):
             if verbose:
                 print(f"Manually Ignored Variable: Passing {name} unaltered")
             data_dict_detrended[name] = ds
-        elif ds.attrs["experiment_id"] == "piControl": 
+        elif ds.attrs["experiment_id"] == "piControl":
             if verbose:
                 print(f"Control run: Passing {name} unaltered")
             data_dict_detrended[name] = ds
         else:
             match_elements = [ds.attrs[i] for i in compare_attrs]
-            match_targets = list(trend_dict.keys()) #use attr once trend files preserve them
+            match_targets = list(
+                trend_dict.keys()
+            )  # use attr once trend files preserve them
             match_trend_names = [
-                m for m in match_targets if all([me+sep in m for me in match_elements])
+                m
+                for m in match_targets
+                if all([me + sep in m for me in match_elements])
             ]
             if len(match_trend_names) == 1:
                 trend_ds = trend_dict[match_trend_names[0]]
@@ -257,56 +261,56 @@ def match_and_detrend(data_dict, trend_dict, pass_variables=[], verbose=False):
                 ref_date = construct_cfdate(
                     0, "hours since 1850-1-15", _get_calendar(ds.time)
                 ).data.tolist()
-                
-                #should this be handled elsewhere?
+
+                # should this be handled elsewhere?
                 if "slope" in trend_ds.variables:
-                    trend_ds = trend_ds.rename({"slope":ds.attrs["variable_id"]})
-                
+                    trend_ds = trend_ds.rename({"slope": ds.attrs["variable_id"]})
+
                 da_detrended = remove_trend(
-                    ds, 
-                    trend_ds,
-                    ds.attrs["variable_id"],
-                    ref_date=ref_date
+                    ds, trend_ds, ds.attrs["variable_id"], ref_date=ref_date
                 )
                 ds[ds.attrs["variable_id"]] = da_detrended.reset_coords(drop=True)
                 data_dict_detrended[name] = ds
-                
-                ds.attrs["detrended_with_file"] = 'Done'
-                
+
+                ds.attrs["detrended_with_file"] = "Done"
+
             elif len(match_trend_names) > 1:
-                raise ValueError(f"Found multiple matches for {match_elements}: {match_trend_names}. Check input")
+                raise ValueError(
+                    f"Found multiple matches for {match_elements}: {match_trend_names}. Check input"
+                )
             else:
                 warnings.warn(f"No match found for {match_elements}.")
     return data_dict_detrended
 
 
-#These are fixes so that the trend data works with cmip6_pp match_and_remove_trend
-#these issues should be addressed in the next iteration of trend file production
+# These are fixes so that the trend data works with cmip6_pp match_and_remove_trend
+# these issues should be addressed in the next iteration of trend file production
 def fix_trend_metadata(trend_dict):
     for name, ds in trend_dict.items():
-        #restore attributes to trend datasets using file names
-        #assumes consistent naming scheme for file names
-        fn = (ds.attrs['filepath']).rsplit("/")[-1]
-        fn_parse = fn.split('_')
-        ds.attrs['source_id'] = fn_parse[2]
-        ds.attrs['grid_label'] = fn_parse[5]
-        ds.attrs['experiment_id'] = fn_parse[3]
-        ds.attrs['table_id'] = fn_parse[4]
-        ds.attrs['variant_label'] = fn_parse[7]
-        ds.attrs['variable_id'] = fn_parse[8]
-        
-        #rename 'slope' variable to variable_id
+        # restore attributes to trend datasets using file names
+        # assumes consistent naming scheme for file names
+        fn = (ds.attrs["filepath"]).rsplit("/")[-1]
+        fn_parse = fn.split("_")
+        ds.attrs["source_id"] = fn_parse[2]
+        ds.attrs["grid_label"] = fn_parse[5]
+        ds.attrs["experiment_id"] = fn_parse[3]
+        ds.attrs["table_id"] = fn_parse[4]
+        ds.attrs["variant_label"] = fn_parse[7]
+        ds.attrs["variable_id"] = fn_parse[8]
+
+        # rename 'slope' variable to variable_id
         if "slope" in ds.variables:
-            ds = ds.rename({"slope":ds.attrs["variable_id"]})
-        
-        #error was triggered in line 350 of cmip6_preprocessing.drift_removal
+            ds = ds.rename({"slope": ds.attrs["variable_id"]})
+
+        # error was triggered in line 350 of cmip6_preprocessing.drift_removal
         ##this is a temporary workaround, and the one part of this function that might
         ##require an upstream fix (though it might just be an environment issue)
-        #ds = ds.drop('trend_time_range')
-        
+        # ds = ds.drop('trend_time_range')
+
         trend_dict[name] = ds
-        
+
     return trend_dict
+
 
 # modified from this: https://stackoverflow.com/a/37704379
 def nested_set(dic, keys, value):
@@ -349,7 +353,15 @@ def flatten_dict(d, parent_key="", sep="-"):
     return dict(items)
 
 
-def rechunker_wrapper(source_store, target_store, temp_store, chunks=None, mem="2GiB", consolidated=False, verbose=False):
+def rechunker_wrapper(
+    source_store,
+    target_store,
+    temp_store,
+    chunks=None,
+    mem="2GiB",
+    consolidated=False,
+    verbose=False,
+):
     # 4GB is based on a node on tigercpu (40 cores/192GB RAM)
     # but wait, should this be per worker? Let me adjust that higher...
 
@@ -371,7 +383,6 @@ def rechunker_wrapper(source_store, target_store, temp_store, chunks=None, mem="
     if target_store.exists():
         shutil.rmtree(target_store)
 
-
     if isinstance(source_store, xr.Dataset):
         g = source_store  # trying to work directly with a dataset
         ds_chunk = g
@@ -379,14 +390,14 @@ def rechunker_wrapper(source_store, target_store, temp_store, chunks=None, mem="
         g = zarr.group(str(source_store))
         # get the correct shape from loading the store as xr.dataset and parse the chunks
         ds_chunk = xr.open_zarr(str(source_store))
-        
+
     # preprocess chunks
     if chunks is None:
         chunks = standard_chunks()
     # this should be able to parse -1 as full length chunks (maybe implement that upstream)
-#     for di, ch in chunks.items():
-#         if ch == -1:
-#             chunks[di] = len(source_store[di])
+    #     for di, ch in chunks.items():
+    #         if ch == -1:
+    #             chunks[di] = len(source_store[di])
 
     # convert all paths to strings
     source_store = str(source_store)
@@ -430,41 +441,40 @@ def rechunker_wrapper(source_store, target_store, temp_store, chunks=None, mem="
     rechunked.execute()
     if consolidated:
         if verbose:
-            print('consolidating metadata')
+            print("consolidating metadata")
         zarr.convenience.consolidate_metadata(target_store)
     if verbose:
-        print('removing temp store')
+        print("removing temp store")
     shutil.rmtree(temp_store)
     if verbose:
-        print('done')
+        print("done")
 
 
 def rechunk_to_temp(
     source,
     store_target,
     store_temp=None,
-    chunks={"time": 6000, "lev": 100, "x":200,"y": 1}, #This cant handle -1 yet...
+    chunks={"time": 6000, "lev": 100, "x": 200, "y": 1},  # This cant handle -1 yet...
     consolidated=False,
     overwrite=True,
-    mem="1536 MiB"):
-    
-    
+    mem="1536 MiB",
+):
     if not overwrite and store_target.exists():
-        print('rechunk_to_temp:rechunked store exists. Not overwriting')
+        print("rechunk_to_temp:rechunked store exists. Not overwriting")
     else:
         for st in [store_temp, store_target]:
             if st.exists():
                 shutil.rmtree(st)
 
-    #     # Hmmm this is a bit confusing...
-    #     if store_temp is None:
-    #         store_temp=ofolder.joinpath("rechunker_temp.zarr")
+        #     # Hmmm this is a bit confusing...
+        #     if store_temp is None:
+        #         store_temp=ofolder.joinpath("rechunker_temp.zarr")
 
         variables = list(source.variables)
-    #     print(variables)
-    #     for var in variables:
-    #         if "chunks" in source[var].encoding.keys():
-    #             del source[var].encoding["chunks"]
+        #     print(variables)
+        #     for var in variables:
+        #         if "chunks" in source[var].encoding.keys():
+        #             del source[var].encoding["chunks"]
         # TODO: Check if this still hasnt been addressed in xarray?
         rechunker_wrapper(
             source,
@@ -476,71 +486,83 @@ def rechunk_to_temp(
         )
     return xr.open_zarr(store_target, use_cftime=True, consolidated=consolidated)
 
+
+import pathlib
+
+import numpy as np
+import zarr
+
 from fastprogress.fastprogress import progress_bar
 from zarr.convenience import consolidate_metadata
 
-import numpy as np
-import pathlib
-import zarr
 
 def _check_zarr_complete(store):
     zg = zarr.open_group(str(store))
     arrays = list(zg.arrays())
     complete = True
     for array in arrays:
-        va = array[0]# variable name
+        va = array[0]  # variable name
         info_items = zg[va].info_items()
         # extract chunks initialized
-        chunks_initialized = np.array([a for a in info_items if a[0]=='Chunks initialized'][0][1].split('/')).astype(int)        
+        chunks_initialized = np.array(
+            [a for a in info_items if a[0] == "Chunks initialized"][0][1].split("/")
+        ).astype(int)
         all_initialized = np.diff(np.array(chunks_initialized))
         # I had a case with 3/1 chunks initialized...not sure where that was from...
-        # TODO: Find out under which circumstances this could happen and if >0 is ok as criterion. 
+        # TODO: Find out under which circumstances this could happen and if >0 is ok as criterion.
         # This was a string dimension variable in the case I encountered
-        if all_initialized > 0: 
-            
+        if all_initialized > 0:
             complete = False
-            print(f'{va} not fully written')
-#             print(info_items)
+            print(f"{va} not fully written")
+    #             print(info_items)
     return complete
-    
+
+
 ## TODO: I need a clever test, that writes a store with an incomplete chunk
-def zarr_exists(store ,check_complete=True, consolidated=True):
-    "Checks if a zarr store exists and is completely written"""
+def zarr_exists(store, check_complete=True, consolidated=True):
+    "Checks if a zarr store exists and is completely written" ""
     if isinstance(store, str):
         store = pathlib.Path(store)
-        
+
     exists = store.exists()
     if not exists:
         return False
     else:
         if consolidated:
-            exists = store.joinpath('.zmetadata').exists()
-        
+            exists = store.joinpath(".zmetadata").exists()
+
         if check_complete:
             exists = _check_zarr_complete(store)
-    return exists 
+    return exists
 
-def append_write_zarr(ds, store, split_chunks, split_dim='time', consolidate=True, safe_chunks=False):
+
+def append_write_zarr(
+    ds, store, split_chunks, split_dim="time", consolidate=True, safe_chunks=False
+):
     """Save a dataset with a loop to avoid blowing up complicated dask graphs"""
     splits = list(range(0, len(ds[split_dim]), split_chunks))
     splits.append(None)
     datasets = []
-    for ii in range(len(splits)-1):
-        datasets.append(ds.isel({split_dim:slice(splits[ii], splits[ii+1])}))
-    
+    for ii in range(len(splits) - 1):
+        datasets.append(ds.isel({split_dim: slice(splits[ii], splits[ii + 1])}))
+
     # .to_zarr needs that we write the first datasets without appending
-    datasets[0].to_zarr(store, mode='w', safe_chunks=safe_chunks)
+    datasets[0].to_zarr(store, mode="w", safe_chunks=safe_chunks)
     for ds_sub in progress_bar(datasets[1:]):
-        ds_sub.to_zarr(store, mode='a', append_dim=split_dim, safe_chunks=safe_chunks)
-    
+        ds_sub.to_zarr(store, mode="a", append_dim=split_dim, safe_chunks=safe_chunks)
+
     if consolidate:
         consolidate_metadata(str(store))
-#==============
+
+
+# ==============
 # cmip6_pp mods
-#==============
+# ==============
 import numpy as np
 import xarray as xr
-from cmip6_preprocessing.postprocessing import exact_attrs, combine_datasets
+
+from cmip6_preprocessing.postprocessing import combine_datasets, exact_attrs
+
 
 # # rewrite concat_members
 # def concat_members(
@@ -607,6 +629,7 @@ def pick_first_member(ddict):
         match_attrs=["source_id", "grid_label", "table_id"],
     )
 
+
 def _maybe_str_to_list(a):
     if isinstance(a, list):
         return a
@@ -616,7 +639,7 @@ def _maybe_str_to_list(a):
 
 # custom define function that sorts input by time...
 def _concat_sorted_time(ds_list, **kwargs):
-    # if an already combined dataset (or a single metric) is passed, 
+    # if an already combined dataset (or a single metric) is passed,
     # return unmodified
     if len(ds_list) == 1:
         return ds_list[0]
@@ -626,7 +649,8 @@ def _concat_sorted_time(ds_list, **kwargs):
         sorted_idx = np.argsort(start_dates)
         ds_list_sorted = [ds_list[i] for i in sorted_idx]
         return xr.concat(ds_list_sorted, "time", **kwargs)
-    
+
+
 def concat_time(ds_dict):
     """Concatenates time, for e.g. datasets loaded from split netcdfs"""
     return combine_datasets(ds_dict, _concat_sorted_time)
@@ -680,11 +704,10 @@ def concat_time(ds_dict):
 
 
 import cf_xarray
-def construct_static_dz(ds, bound_coord='lev_bounds'):
-    lev_vertices = cf_xarray.bounds_to_vertices(ds[bound_coord], 'bnds').load()
-    dz_t = lev_vertices.diff('lev_vertices')
-    ds = ds.assign_coords(thkcello=('lev', dz_t.data))
+
+
+def construct_static_dz(ds, bound_coord="lev_bounds"):
+    lev_vertices = cf_xarray.bounds_to_vertices(ds[bound_coord], "bnds").load()
+    dz_t = lev_vertices.diff("lev_vertices")
+    ds = ds.assign_coords(thkcello=("lev", dz_t.data))
     return ds
-    
-    
-    
